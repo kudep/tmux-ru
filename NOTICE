@@ -1,0 +1,12 @@
+This project vendors "Oh my tmux!" by Gregory Pakosz:
+
+    tmux/tmux.conf        <- .tmux.conf from gpakosz/.tmux
+    tmux/tmux.conf.local  <- .tmux.conf.local from gpakosz/.tmux, customized
+
+Source:  https://github.com/gpakosz/.tmux
+License: MIT (LICENSE.MIT) and WTFPL v2 (LICENSE.WTFPLv2), dual-licensed.
+
+The customizations layered on top (mouse / clipboard / zoom tweaks, the
+Russian-layout support in tmux/cyrillic-layout.sh, install.sh and the test
+suite) are Copyright (c) 2026 Denis Kuznetsov and released under the MIT
+license (see LICENSE).
