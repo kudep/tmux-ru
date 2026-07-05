@@ -18,8 +18,17 @@ die()  { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 SUDO=""
 [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null && SUDO="sudo"
 
+# Can we install packages WITHOUT an interactive admin prompt?
+# (root, or passwordless sudo). We never want the installer to demand a
+# password — missing tools are handled gracefully instead.
+can_apt() {
+  command -v apt-get >/dev/null || return 1
+  [ "$(id -u)" -eq 0 ] && return 0
+  [ -n "$SUDO" ] && sudo -n true 2>/dev/null && return 0
+  return 1
+}
+
 apt_install() {
-  command -v apt-get >/dev/null || { warn "no apt-get; install manually: $*"; return 0; }
   info "Installing: $*"
   $SUDO apt-get update -qq
   DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq "$@"
@@ -34,8 +43,10 @@ fi
 CLEANUP=""
 trap '[ -n "$CLEANUP" ] && rm -rf "$CLEANUP"' EXIT
 if [ -z "$SRC" ]; then
-  command -v git >/dev/null || apt_install git
-  command -v git >/dev/null || die "git is required to fetch the repo"
+  if ! command -v git >/dev/null; then
+    can_apt && apt_install git
+  fi
+  command -v git >/dev/null || die "git is required to fetch the repo — install it and re-run"
   CLEANUP=$(mktemp -d)
   info "Fetching $REPO_URL ($BRANCH)"
   git clone --depth 1 -b "$BRANCH" "$REPO_URL" "$CLEANUP/repo" >/dev/null 2>&1 \
@@ -44,12 +55,28 @@ if [ -z "$SRC" ]; then
 fi
 
 # --- dependencies ------------------------------------------------------------
-need=""
-command -v tmux >/dev/null || need="$need tmux"
-command -v xsel >/dev/null || command -v xclip >/dev/null || need="$need xsel"
-# shellcheck disable=SC2086
-[ -n "$need" ] && apt_install $need
+# tmux is the only hard requirement.
+if ! command -v tmux >/dev/null; then
+  if can_apt; then
+    apt_install tmux
+  else
+    die "tmux is not installed and I can't install it without admin rights.
+     Install it yourself (e.g. 'sudo apt install tmux') and re-run this."
+  fi
+fi
 command -v tmux >/dev/null || die "tmux not available after install"
+
+# A clipboard tool (xsel/xclip) is OPTIONAL — it only powers copy-to-system-
+# clipboard on X11, useless on a headless box. Install it only if we can do so
+# without prompting for a password; otherwise just carry on (tmux still copies
+# into its own buffer).
+if ! command -v xsel >/dev/null && ! command -v xclip >/dev/null; then
+  if can_apt; then
+    apt_install xsel || warn "could not install xsel — system-clipboard integration off"
+  else
+    warn "no xsel/xclip and no admin rights — system-clipboard integration off (tmux still works). Install xsel later if you want it."
+  fi
+fi
 
 # --- backup + install config -------------------------------------------------
 ts=$(date +%Y%m%d-%H%M%S)

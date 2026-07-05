@@ -1,0 +1,17 @@
+# Reproduces the gpu12 situation: tmux already present, NO clipboard tool, and
+# an unprivileged user with NO sudo. install.sh must succeed here WITHOUT ever
+# asking for admin rights.
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 TERM=xterm-256color
+# tmux + git preinstalled; deliberately NO xsel/xclip and NO sudo.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends tmux git python3 locales && \
+    locale-gen en_US.UTF-8 && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd -m -s /bin/bash user
+WORKDIR /repo
+COPY . /repo
+RUN chown -R user /repo
+USER user
+CMD ["bash", "test/test-noroot.sh"]
